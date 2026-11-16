@@ -1,0 +1,54 @@
+name: Build Private Toolkit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Build Mindustry mod
+        working-directory: mod
+        run: gradle clean build
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build Windows launcher
+        run: msbuild launcher/PrivateToolkit.csproj /p:Configuration=Release /p:Platform=x64
+
+      - name: Prepare release folder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item mod/build/libs/PrivateToolkit.jar dist/PrivateToolkit.jar
+          Copy-Item launcher/bin/Release/PrivateToolkit.exe dist/PrivateToolkit.exe
+          @'
+          Mindustry Private Toolkit
+          Local single-player starter build.
+          Install the JAR with PrivateToolkit.exe.
+          Target: Mindustry v8 Build 160.x.
+          '@ | Set-Content dist/README.txt
+
+      - name: Upload Windows x64 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mindustry-Private-Toolkit-Windows-x64
+          path: dist/*
+          if-no-files-found: error
