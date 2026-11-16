@@ -1,13 +1,45 @@
+
 name: Package mod
-on: [push, workflow_dispatch]
+
+on:
+  push:
+  workflow_dispatch:
+
 jobs:
   pack:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Zip mod
-        run: zip -r helper-private.zip mod.json scripts
+
+      - name: Locate and package mod
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Current directory:"
+          pwd
+          ls -la
+
+          MOD_JSON=$(find . -name mod.json \
+            -not -path './.git/*' -print -quit)
+
+          if [ -z "$MOD_JSON" ]; then
+            echo "mod.json not found!"
+            exit 1
+          fi
+
+          MOD_DIR=$(dirname "$MOD_JSON")
+
+          if [ ! -d "$MOD_DIR/scripts" ]; then
+            echo "scripts folder not found!"
+            exit 1
+          fi
+
+          cd "$MOD_DIR"
+          zip -r "$GITHUB_WORKSPACE/helper-private.zip" mod.json scripts
+
       - uses: actions/upload-artifact@v4
         with:
           name: helper-private
           path: helper-private.zip
+          
