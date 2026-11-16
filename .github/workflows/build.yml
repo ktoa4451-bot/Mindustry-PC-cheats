@@ -1,62 +1,13 @@
-
-name: Build Mindustry Private Toolkit
-
-on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
-      - master
-
+name: Package mod
+on: [push, workflow_dispatch]
 jobs:
-  build:
-    runs-on: windows-2022
-
+  pack:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Check project structure
-        shell: pwsh
-        run: |
-          Write-Host "Repository root:"
-          Get-Location
-          Get-ChildItem -Force
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - name: Zip mod
+        run: zip -r helper-private.zip mod.json scripts
+      - uses: actions/upload-artifact@v4
         with:
-          distribution: temurin
-          java-version: '21'
-          cache: gradle
-
-      - name: Find Gradle project
-        shell: pwsh
-        run: |
-          $wrapper = Get-ChildItem -Path . -Filter gradlew.bat -Recurse |
-            Select-Object -First 1
-
-          if ($null -eq $wrapper) {
-            throw "gradlew.bat not found. This repository may not contain a Gradle project."
-          }
-
-          $projectDir = $wrapper.Directory.FullName
-          "PROJECT_DIR=$projectDir" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-          Write-Host "Gradle project: $projectDir"
-
-      - name: Build
-        shell: pwsh
-        run: |
-          Set-Location $env:PROJECT_DIR
-          .\gradlew.bat clean build --no-daemon
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: Mindustry-Private-Toolkit-Build
-          path: |
-            **/build/libs/*.jar
-            **/build/outputs/**/*.apk
-          if-no-files-found: warn
-          
+          name: helper-private
+          path: helper-private.zip
