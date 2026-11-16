@@ -1,54 +1,62 @@
-name: Build Private Toolkit
+
+name: Build Mindustry Private Toolkit
 
 on:
   workflow_dispatch:
   push:
-    branches: [ "main", "master" ]
+    branches:
+      - main
+      - master
 
 jobs:
   build:
     runs-on: windows-2022
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Check project structure
+        shell: pwsh
+        run: |
+          Write-Host "Repository root:"
+          Get-Location
+          Get-ChildItem -Force
+
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
+          cache: gradle
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.10.2'
-
-      - name: Build Mindustry mod
-        working-directory: mod
-        run: gradle clean build
-
-      - name: Set up MSBuild
-        uses: microsoft/setup-msbuild@v2
-
-      - name: Build Windows launcher
-        run: msbuild launcher/PrivateToolkit.csproj /p:Configuration=Release /p:Platform=x64
-
-      - name: Prepare release folder
+      - name: Find Gradle project
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item mod/build/libs/PrivateToolkit.jar dist/PrivateToolkit.jar
-          Copy-Item launcher/bin/Release/PrivateToolkit.exe dist/PrivateToolkit.exe
-          @'
-          Mindustry Private Toolkit
-          Local single-player starter build.
-          Install the JAR with PrivateToolkit.exe.
-          Target: Mindustry v8 Build 160.x.
-          '@ | Set-Content dist/README.txt
+          $wrapper = Get-ChildItem -Path . -Filter gradlew.bat -Recurse |
+            Select-Object -First 1
 
-      - name: Upload Windows x64 package
+          if ($null -eq $wrapper) {
+            throw "gradlew.bat not found. This repository may not contain a Gradle project."
+          }
+
+          $projectDir = $wrapper.Directory.FullName
+          "PROJECT_DIR=$projectDir" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+          Write-Host "Gradle project: $projectDir"
+
+      - name: Build
+        shell: pwsh
+        run: |
+          Set-Location $env:PROJECT_DIR
+          .\gradlew.bat clean build --no-daemon
+
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Mindustry-Private-Toolkit-Windows-x64
-          path: dist/*
-          if-no-files-found: error
+          name: Mindustry-Private-Toolkit-Build
+          path: |
+            **/build/libs/*.jar
+            **/build/outputs/**/*.apk
+          if-no-files-found: warn
+          
