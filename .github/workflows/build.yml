@@ -1,45 +1,81 @@
 
-name: Package mod
+name: Mindustry Private Toolkit Build
 
 on:
   push:
   workflow_dispatch:
 
 jobs:
-  pack:
+  build:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Locate and package mod
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip unzip
+
+      - name: Extract project
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "Current directory:"
-          pwd
+          echo "Repository files:"
           ls -la
 
-          MOD_JSON=$(find . -name mod.json \
-            -not -path './.git/*' -print -quit)
+          if [ ! -f mindustry-helper.zip ]; then
+            echo "::error::mindustry-helper.zip not found"
+            exit 1
+          fi
+
+          mkdir -p extracted
+          unzip -o mindustry-helper.zip -d extracted
+
+          echo "Extracted project:"
+          find extracted -maxdepth 5 -type f
+
+      - name: Validate project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          MOD_JSON=$(find extracted -type f -name mod.json -print -quit)
 
           if [ -z "$MOD_JSON" ]; then
-            echo "mod.json not found!"
+            echo "::error::mod.json not found inside archive"
             exit 1
           fi
 
           MOD_DIR=$(dirname "$MOD_JSON")
 
           if [ ! -d "$MOD_DIR/scripts" ]; then
-            echo "scripts folder not found!"
+            echo "::error::scripts directory not found"
             exit 1
           fi
+
+          echo "Project validated successfully"
+
+      - name: Package mod
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          MOD_JSON=$(find extracted -type f -name mod.json -print -quit)
+          MOD_DIR=$(dirname "$MOD_JSON")
 
           cd "$MOD_DIR"
           zip -r "$GITHUB_WORKSPACE/helper-private.zip" mod.json scripts
 
-      - uses: actions/upload-artifact@v4
+          echo "Final archive:"
+          unzip -l "$GITHUB_WORKSPACE/helper-private.zip"
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
         with:
-          name: helper-private
+          name: Mindustry-Private-Toolkit
           path: helper-private.zip
+          if-no-files-found: error
           
